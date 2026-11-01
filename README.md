@@ -1,12 +1,12 @@
 # DumbDeepResearch (DDR)
 
-DumbDeepResearch (DDR) is a deterministic, visual, human-in-the-loop research engine. Instead of letting an autonomous AI agent spend 10 minutes burning tokens in a black box, DDR gives you a live visual node canvas where you steer the research tree in real time.
+DumbDeepResearch (DDR) is a deterministic, visual, human-in-the-loop research engine. Instead of letting an autonomous AI agent spend 10 minutes burning tokens in a black box, DDR gives you a live visual map of how the research is unfolding—branch by branch, source by source, with a human deciding where to go next.
 
 ---
 
 ## The Core Concept
 
-* **"Dumb" by Design:** The LLM does not make autonomous routing decisions or wander off. It is used strictly as a fast utility to break topics into sub-queries and pull 3 bulleted facts out of scraped web pages.
+* **"Dumb" by Design:** The LLM does not make autonomous routing decisions or wander off. It is used strictly as a fast utility to break topics into sub-queries and pull 3 bulleted facts out of scraped pages.
 * **Deterministic Flow:** You control the graph, the traversal, the search queries, and the depth limits.
 * **Live Visual Canvas:** Instead of waiting for one giant markdown report at the end, research results appear as cards on an interactive node graph (similar to an Obsidian canvas) as they happen.
 * **You Steer the Direction:**
@@ -14,8 +14,6 @@ DumbDeepResearch (DDR) is a deterministic, visual, human-in-the-loop research en
 * **Prune (`x`):** Kill irrelevant branches instantly so no more time or tokens are wasted on them.
 * **Manual Probe:** Click any node to inject your own custom search query or prompt instructions instead of accepting the AI's default.
 * **Depth & Breadth Limits:** Set exact boundaries on how many levels deep a search can go and how many pages to scrape.
-
-
 
 ---
 
@@ -37,8 +35,6 @@ DumbDeepResearch (DDR) is a deterministic, visual, human-in-the-loop research en
 * Node cards showing topic title, live status (Queued, Scraping, Complete), 3 key findings, and source links.
 * Card controls: **Explore**, **Prune**, and **Probe** (opens an input to override the search query).
 * Top bar: Root research input, global depth slider, and max-source settings.
-
-
 
 ---
 
@@ -64,7 +60,55 @@ DumbDeepResearch (DDR) is a deterministic, visual, human-in-the-loop research en
 * `PROBE`: `{ node_id, custom_query, prompt_override }`
 * `PRUNE`: `{ node_id }`
 
-
 * **Engine Broadcasts:**
 * `NODE_ADDED`: Pushes a newly proposed or discovered node to the canvas.
 * `NODE_UPDATED`: Streams status changes, findings, and verified sources to an existing card.
+
+---
+
+## System Flow Diagram
+
+```mermaid
+flowchart TD
+    %% Styling & Theme Setup
+    classDef input fill:#1e293b,stroke:#64748b,stroke-width:2px,color:#f8fafc;
+    classDef engine fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef localLlm fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
+    classDef io fill:#14532d,stroke:#4ade80,stroke-width:2px,color:#f8fafc;
+    classDef userGate fill:#451a03,stroke:#fb923c,stroke-width:2px,color:#f8fafc;
+
+    Start(["User Input: 'I want to find out more about birds'"]):::input --> Step1
+
+    subgraph PHASE1 ["Phase 1: Query Formulation & Search"]
+        Step1["Query Generator<br/><i>(1x Fast LLM call or Keyword Extractor)</i><br/>Produces: 'avian taxonomy evolution flight ecology'"]:::engine
+        Step1 --> Search["Execute Web Search<br/><i>(Brave / SearXNG API)</i><br/>Pulls top 3-5 relevant URLs"]:::engine
+    end
+
+    subgraph PHASE2 ["Phase 2: Ingestion & Raw Extraction"]
+        Search --> Scrape["Async HTTP Scraper<br/><i>(reqwest + tokio semaphore)</i><br/>Fetches HTML concurrently"]:::engine
+        Scrape --> Clean["HTML Sanitizer<br/><i>(lol-html)</i><br/>Strips nav, script, ads to pure text"]:::engine
+        Clean --> RawDump[("Save Raw Dump to Disk<br/><code>data/raw/{node_id}.txt</code>")]:::io
+    end
+
+    subgraph PHASE3 ["Phase 3: Local Distillation & Branch Detection"]
+        RawDump --> LocalSummary["Local LLM: Summarizer<br/><i>(Ollama: Qwen 2.5 7B)</i><br/>Extracts 3-5 core facts + key metrics"]:::localLlm
+        LocalSummary --> NodeDossier[("Write Node Summary<br/><code>nodes/{node_id}.json</code>")]:::io
+        
+        NodeDossier --> LocalBranch["Local LLM: Branch Generator<br/><i>(Ollama: Qwen 2.5 7B)</i><br/>Detects tensions, gaps, or forks"]:::localLlm
+        
+        LocalBranch --> BranchGen["Generate 2-3 Choice Nodes<br/>• Avian Flight Dynamics<br/>• Dinosaur-Bird Evolutionary Link<br/>• Migration & Navigation Sensors"]:::engine
+    end
+
+    subgraph PHASE4 ["Phase 4: Graph Sync & Human Gate"]
+        BranchGen --> GraphUpdate["Update Graph State<br/><i>(petgraph in-memory DAG)</i>"]:::engine
+        GraphUpdate --> WsEmit["Broadcast over WebSocket<br/><i>(Axum /ws)</i><br/>Pushes NodeComplete + 3 Choices"]:::engine
+        WsEmit --> Canvas["Render on Canvas<br/><i>(Solid node + Dotted choice cards)</i>"]:::input
+        Canvas --> Gate{"Human Decision Gate"}:::userGate
+        
+        Gate -->|"Click 'Explore' on Flight"| RunChild["Trigger Child Node Lifecycle"]:::engine
+        Gate -->|"Click 'Prune' on Migration"| DropChild["Purge Choice Node from Graph"]:::engine
+        Gate -->|"Click 'Probe' on Evolution"| OverrideChild["Inject Custom User Search Terms"]:::engine
+    end
+
+    RunChild -.->|"Recursively loops back"| Step1
+```
