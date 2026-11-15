@@ -17,6 +17,19 @@ DumbDeepResearch (DDR) is a deterministic, visual, human-in-the-loop research en
 
 ---
 
+## Architecture Overview
+
+```mermaid
+flowchart LR
+    UI["Frontend (React Flow)<br/>frontend/src"] <-->|"WebSocket JSON<br/>(ddr-protocol)"| Server["Server (Axum /ws)<br/>crates/ddr-server"]
+    Server --> Engine["Engine (ResearchCoordinator)<br/>crates/ddr-engine"]
+    Engine -->|"Bounded Node Explore"| Crawler["Crawler (Search + Fetch + Clean)<br/>crates/ddr-crawler"]
+    Engine -->|"Graph, Claims & Equalizer"| Knowledge["Knowledge (DAG + Extraction)<br/>crates/ddr-knowledge"]
+    Crawler -.->|"ScrapedDocument"| Knowledge
+```
+
+---
+
 ## System Division
 
 ### 1. The Core Engine (What You Build in Rust)

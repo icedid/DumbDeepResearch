@@ -1,0 +1,13 @@
+[package]
+name = "ddr-engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ddr-protocol.workspace = true
+ddr-crawler.workspace = true
+ddr-knowledge.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+uuid.workspace = true
+tracing.workspace = true

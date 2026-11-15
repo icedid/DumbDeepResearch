@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ddr-protocol",
+    "crates/ddr-crawler",
+    "crates/ddr-knowledge",
+    "crates/ddr-engine",
+    "crates/ddr-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+url = { version = "2.5", features = ["serde"] }
+tokio = { version = "1.40", features = ["full"] }
+tokio-util = "0.7"
+petgraph = "0.6"
+axum = { version = "0.7", features = ["ws"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+thiserror = "1.0"
+tracing = "0.1"
+
+# Internal workspace crates
+ddr-protocol = { path = "crates/ddr-protocol" }
+ddr-crawler = { path = "crates/ddr-crawler" }
+ddr-knowledge = { path = "crates/ddr-knowledge" }
+ddr-engine = { path = "crates/ddr-engine" }

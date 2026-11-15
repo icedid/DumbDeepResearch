@@ -1,6 +1,6 @@
-# Engine Architecture: Dual-Graph Research Engine
+# Engine Architecture: Knowledge Graph & Bounded Node Explore Engine
 
-## 1. Node Representation Trade-Off Analysis & The Dual-Graph Paradigm
+## 1. Node Representation Trade-Off Analysis & The Hybrid Paradigm
 
 In this architecture, defining what constitutes a **Node** dictates how traversal algorithms operate, what data structures Rust allocates, and how perspective balancing is enforced.
 
@@ -65,19 +65,19 @@ A node represents a named entity or technical concept (e.g., `"Lithium Iron Phos
 
 ---
 
-### The Recommended Architecture: The Dual-Graph Approach
+### The Recommended Architecture: Knowledge Graph + Bounded Node Explore Algorithm
 
-Attempting to force a single node definition across both the discovery phase and the balancing phase creates conflicting constraints. The cleanest system design splits the pipeline into two decoupled graph representations:
+Attempting to force a single node definition across both web discovery and claim synthesis creates conflicting constraints. The cleanest system design separates the **persistent, user-facing Knowledge Graph** from an **ephemeral, bounded Node Explore Algorithm** that runs per node:
 
 ```
-[ Crawl Graph ]                          [ Knowledge Graph ]
-Node: URL / Page                         Node: Atomic Claim
-Edge: Hyperlink / Domain Hierarchy  ──►  Edge: Semantic Distance / Polarity
-Operates on: Network & DOM I/O           Operates on: Synthesized Facts
+[ Knowledge Graph (Persistent DAG) ]       [ Node Explore Algorithm (Per-Node) ]
+Node: KnowledgeNode (Topic + Claims)  ──►  Ephemeral Unit: PageNode (URL)
+Controls: Start / Explore / Probe / Prune  Bounded by: max_sources, depth <= 1, domain <= 2
+Operates on: Synthesized Facts & UI        Operates on: Network & DOM I/O
 ```
 
-1. **Traversal Engine (Phase 2):** Uses **Page Nodes** (`Node = URL`). Traversal is purely deterministic, fast, and enforces domain ceilings at zero token cost.
-2. **Balancing & Synthesis Engine (Phases 4–5):** Converts the scraped text into **Claim Nodes** (`Node = Extracted JSON Claim`). The equalizer clusters these claim nodes, balances the ratios mathematically, and hands them off to the final LLM.
+1. **Knowledge Graph & Coordinator (`ddr-engine` + `ddr-knowledge`):** The persistent `KnowledgeNode` DAG is what the user sees and steers on the canvas. Each node exposes controls (`Explore`, `Probe`, `Prune`) and stores verified `SourceMetadata`, `AtomicClaim`s, and `SuggestedBranch`es.
+2. **Node Explore Algorithm (`ddr-crawler`, Phase 1):** Whenever a `KnowledgeNode` is triggered (`Start`, `Explore`, or `Probe`), the engine runs a bounded, deterministic exploration pass using ephemeral `PageNode`s (`Node = URL`). It scrapes up to the node's configured limits at zero LLM token cost, then passes the cleaned text through the extraction bridge to populate the `KnowledgeNode` and equalize perspectives.
 
 ---
 
@@ -85,35 +85,39 @@ Operates on: Network & DOM I/O           Operates on: Synthesized Facts
 
 ```mermaid
 flowchart LR
-    subgraph G1 ["1. Crawl Graph (Page Level)"]
+    subgraph KG_Ctrl ["0. Knowledge Graph Coordinator (Persistent DAG)"]
         direction TB
-        Q["User Research Query"] --> EXP["Deterministic Matrix Expansion<br/><i>(Polarity & Domain Dimensions)</i>"]
-        EXP --> CRAWL["BFS Crawl & Selective Citation DFS<br/><i>(Hard Domain Quotas, Zero LLM)</i>"]
-        CRAWL --> DOM_AUDIT[("Raw DOM Archive<br/><i>SHA-256 Stamped</i>")]
+        Q["User Action (Start / Explore / Probe)"] --> EXP["Deterministic Query & Node Config<br/><i>(max_sources, Polarity & FacetSlot)</i>"]
     end
 
-    subgraph Bridge ["Transformation Bridge"]
+    subgraph G1 ["1. Node Explore Algorithm (Ephemeral Per-Node)"]
+        direction TB
+        EXP --> CRAWL["Bounded BFS & Selective Citation DFS<br/><i>(Hard Domain Quotas, Zero LLM)</i>"]
+        CRAWL --> DOM_AUDIT[("Raw DOM Snapshot<br/><i>SHA-256 Stamped</i>")]
+    end
+
+    subgraph Bridge ["2. Transformation Bridge"]
         direction TB
         DOM_AUDIT --> CLEAN["Boilerplate & Noise Filter<br/><i>(lol-html / MinHash)</i>"]
         CLEAN --> EXTRACT["Local Micro-SLM (1B-3B)<br/><i>(JSON Schema Extraction)</i>"]
     end
 
-    subgraph G2 ["2. Knowledge Graph (Claim Level)"]
+    subgraph G2 ["3. Knowledge Graph Synthesis (Claim & Node Level)"]
         direction TB
         EXTRACT --> CLAIMS["Atomic Claim Nodes<br/><i>(Subject, Predicate, Polarity)</i>"]
         CLAIMS --> CLUSTER["Semantic Clustering & 50/50 Equalizer<br/><i>(Enforce Balanced Quotas)</i>"]
-        CLUSTER --> SYNTH["Single-Pass Synthesis<br/><i>(Audit-Linked Report)</i>"]
+        CLUSTER --> UPDATE["Update KnowledgeNode + Propose Branches<br/><i>(Stream to Canvas / Synthesis)</i>"]
     end
 
-    G1 --> Bridge --> G2
+    KG_Ctrl --> G1 --> Bridge --> G2
 ```
 
 ---
 
 ## 3. Node Specifications & Rust Data Structures
 
-### Graph 1: The Crawl Graph (`PageNode`)
-Operates on URLs and DOM trees. Rust allocates lightweight nodes with zero LLM overhead during ingestion.
+### Ephemeral Explore Unit: `PageNode` (Node Explore Algorithm)
+Operates on URLs and DOM trees *within* a single `KnowledgeNode` exploration pass. Rust allocates lightweight nodes with zero LLM overhead during ingestion, then discards the frontier once `SourceMetadata` and cleaned text are handed off.
 
 ```rust
 use uuid::Uuid;
@@ -148,8 +152,8 @@ pub struct PageNode {
 
 ---
 
-### Graph 2: The Knowledge Graph (`ClaimNode`)
-Operates on extracted factual propositions. Created strictly after DOM ingestion by a local 1B–3B micro-SLM.
+### Persistent Graph: The Knowledge Graph (`KnowledgeNode` & `ClaimNode`)
+The Knowledge Graph is the persistent, user-facing DAG coordinated by `ddr-engine`. Each `KnowledgeNode` stores its `SourceMetadata`, extracted `ClaimNode`s (`AtomicClaim`s in `ddr-protocol`), and `SuggestedBranch`es. Claims are created strictly after DOM ingestion by a local 1B–3B micro-SLM.
 
 ```rust
 use uuid::Uuid;
@@ -192,8 +196,8 @@ flowchart TD
 
     UserQuery(["User Research Topic"]) --> QueryExp["Deterministic Query Matrix<br/><i>(Bull, Bear & Benchmark query sets)</i>"]
     
-    %% PHASE 1: CRAWL GRAPH EXECUTION
-    subgraph PhaseCrawl ["Phase 1: Crawl Graph Traversal (PageNode)"]
+    %% PHASE 1: NODE EXPLORE ALGORITHM EXECUTION
+    subgraph PhaseCrawl ["Phase 1: Node Explore Algorithm (Bounded Per-Node PageNode)"]
         QueryExp --> SERP["Multi-SERP Search Engine Execution"]
         SERP --> Queue["PageNode Frontier Queue"]
         
@@ -203,7 +207,7 @@ flowchart TD
         DomHash --> QualityGate{"Passes Quality Gate?<br/><i>(Length > 250 words, non-duplicate)</i>"}:::gate
         
         QualityGate -- "No" --> DropPage(["Discard URL"]):::stop
-        QualityGate -- "Yes" --> RegisterPage["Instantiate PageNode in Crawl Graph<br/><code>status: Indexed</code>"]:::pageNode
+        QualityGate -- "Yes" --> RegisterPage["Record PageNode & SourceMetadata<br/><code>status: Indexed</code>"]:::pageNode
         
         RegisterPage --> BranchGate{"Branching Gate:<br/><i>Depth < 1 & Domain Budget < 2?</i>"}:::gate
         
@@ -245,4 +249,4 @@ Every claim in the final dossier preserves an unbroken, deterministic audit trai
 
 $$\text{User Topic} \longrightarrow \text{Query Strategy} \longrightarrow \text{PageNode (URL + SHA-256)} \longrightarrow \text{ClaimNode (UUID)} \longrightarrow \text{Equalizer Cluster} \longrightarrow \text{Dossier Citation}$$
 
-* If a cited claim is challenged, counsel or auditors can inspect the immutable SHA-256 DOM snapshot recorded in the Crawl Graph at the moment of ingestion.
+* If a cited claim is challenged, counsel or auditors can inspect the immutable SHA-256 DOM snapshot recorded during the Node Explore Algorithm's ingestion pass (`SourceMetadata`).

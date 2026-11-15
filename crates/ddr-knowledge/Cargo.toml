@@ -1,0 +1,12 @@
+[package]
+name = "ddr-knowledge"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ddr-protocol.workspace = true
+ddr-crawler.workspace = true
+petgraph.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
