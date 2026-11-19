@@ -1,4 +1,5 @@
 pub mod discovery;
+pub mod dossier;
 pub mod equalizer;
 pub mod extractor;
 pub mod graph;

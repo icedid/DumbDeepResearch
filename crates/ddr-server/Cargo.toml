@@ -6,8 +6,15 @@ edition.workspace = true
 [dependencies]
 ddr-protocol.workspace = true
 ddr-engine.workspace = true
+ddr-knowledge.workspace = true
 axum.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
+tower-http.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true

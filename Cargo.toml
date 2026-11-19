@@ -25,6 +25,13 @@ axum = { version = "0.7", features = ["ws"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 thiserror = "1.0"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-http = { version = "0.6", features = ["cors"] }
+lol_html = "3.0"
+sha2 = "0.11"
+hex = "0.4"
+regex = "1.11"
+futures-util = "0.3"
 
 # Internal workspace crates
 ddr-protocol = { path = "crates/ddr-protocol" }

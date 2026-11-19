@@ -16,7 +16,7 @@ flowchart LR
 
     Searching --> Search["ddr-crawler: MetaSearchClient::search"]
     Search --> Frontier["ddr-crawler: FrontierGuard::allow_url (dedup + domain cap)"]
-    Frontier --> Scraping["2. NodeStatus::Scraping (NodeUpdated)"]
+    Frontier --> Scraping["2. NodeStatus::Scraping (NodewUpdated)"]
 
     Scraping --> Fetch["Async HTTP Fetch (reqwest)"]
     Fetch --> Clean["ddr-crawler: DomCleaner::sanitize_html -> clean_text + dom_sha256"]
